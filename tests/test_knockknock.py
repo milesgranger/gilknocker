@@ -48,7 +48,6 @@ def _run(target):
 
     for thread in threads:
         thread.join()
-    knocker.stop()
     print(f"Metric: {knocker.contention_metric}")
     return knocker
 
@@ -58,8 +57,22 @@ def _run(target):
 def test_knockknock_busy():
     knocker = _run(a_lotta_gil)
 
-    # usually ~0.9 on linux ~0.6 on windows
-    assert knocker.contention_metric > 0.6
+    try:
+        # usually ~0.9 on linux ~0.6 on windows
+        assert knocker.contention_metric > 0.6
+
+        # Now wait for it to 'cool' back down
+        # by looping over some work which releases the GIL
+        prev_cm = knocker.contention_metric
+        for i in range(10):
+            a_little_gil()
+            assert knocker.contention_metric < prev_cm
+            prev_cm = knocker.contention_metric
+
+        # ~0.15 oN mY MaChInE.
+        assert knocker.contention_metric < 0.2
+    finally:
+        knocker.stop()
 
 
 @pytest.mark.xfail(raises=TimeoutError)
@@ -67,12 +80,14 @@ def test_knockknock_busy():
 def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
 
-    # usually ~0.001 on linux and ~0.05 on windows
-    assert knocker.contention_metric < 0.06
+    try:
+        # usually ~0.001 on linux and ~0.05 on windows
+        assert knocker.contention_metric < 0.06
+    finally:
+        knocker.stop()
 
 
 # Manual verification with py-spy
 # busy should give high GIL %
 if __name__ == "__main__":
     test_knockknock_busy()
-    test_knockknock_available_gil()
