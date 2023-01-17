@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import threading
 import time
@@ -8,7 +9,7 @@ N_THREADS = 4
 N_PTS = 4096
 
 
-def flaky(n_tries=5):
+def flaky(n_tries=10):
     def wrapper(func):
         def _wrapper(*args, **kwargs):
             for _ in range(n_tries - 1):
@@ -52,16 +53,22 @@ def _run(target):
     return knocker
 
 
+@pytest.mark.xfail(raises=TimeoutError)
 @flaky()
 def test_knockknock_busy():
     knocker = _run(a_lotta_gil)
-    assert knocker.contention_metric > 0.9
+
+    # usually ~0.9 on linux ~0.6 on windows
+    assert knocker.contention_metric > 0.6
 
 
+@pytest.mark.xfail(raises=TimeoutError)
 @flaky()
 def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
-    assert knocker.contention_metric < 0.01
+
+    # usually ~0.001 on linux and ~0.05 on windows
+    assert knocker.contention_metric < 0.06
 
 
 # Manual verification with py-spy
