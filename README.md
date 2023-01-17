@@ -5,7 +5,7 @@
 
 
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
-[![CI](https://github.com/milesgranger/gilknocker/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/milesgranger/gilknocker/actions/workflows/CI.yml)
+[![CI](https://github.com/milesgranger/gilknocker/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/milesgranger/gilknocker/actions/workflows/CI.yml)
 [![PyPI](https://img.shields.io/pypi/v/gilknocker.svg)](https://pypi.org/project/gilknocker)
 ![PyPI - Wheel](https://img.shields.io/pypi/wheel/gilknocker)
 [![Downloads](https://pepy.tech/badge/gilknocker/month)](https://pepy.tech/project/gilknocker)
