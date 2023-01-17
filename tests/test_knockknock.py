@@ -75,3 +75,4 @@ def test_knockknock_available_gil():
 # busy should give high GIL %
 if __name__ == "__main__":
     test_knockknock_busy()
+    test_knockknock_available_gil()

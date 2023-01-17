@@ -83,8 +83,7 @@ impl KnockKnock {
                 let runtime = Instant::now();
                 while recv
                     .recv_timeout(interval)
-                    .map_err(|e| e != RecvTimeoutError::Disconnected)
-                    .unwrap_or(true)
+                    .unwrap_or_else(|e| e != RecvTimeoutError::Disconnected)
                 {
                     let start = Instant::now();
                     time_to_acquire += Python::with_gil(move |_py| start.elapsed());
