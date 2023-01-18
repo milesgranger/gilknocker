@@ -9,7 +9,7 @@ N_THREADS = 4
 N_PTS = 4096
 
 
-def flaky(n_tries=10):
+def flaky(n_tries=5):
     def wrapper(func):
         def _wrapper(*args, **kwargs):
             for _ in range(n_tries - 1):
@@ -83,6 +83,19 @@ def test_knockknock_available_gil():
     try:
         # usually ~0.001 on linux and ~0.05 on windows
         assert knocker.contention_metric < 0.06
+    finally:
+        knocker.stop()
+
+
+@flaky()
+def test_knockknock_reset_contention_metric():
+    knocker = _run(a_lotta_gil)
+
+    try:
+        assert knocker.contention_metric > 0.6
+        knocker.reset_contention_metric()
+        assert knocker.contention_metric < 0.001
+
     finally:
         knocker.stop()
 
