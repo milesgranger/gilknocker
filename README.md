@@ -33,7 +33,7 @@ This works by spawning a thread which, at regular intervals, re-acquires the GIL
 how long it took for the GIL to answer.
 
 Note, the interval (`interval_micros`) is configurable. The lower the value, the 
-more accurate the metric, but will be more likely to cause a deadlock and/or slow your
+more accurate the metric, but will be more likely to slow your
 program down.. because it will play a larger role in competing for the GIL's attention.
 
 ### Use
@@ -49,8 +49,15 @@ knocker.start()
 
 ... smart code here ...
 
-knocker.stop()
 knocker.contention_metric  # float between 0-1 indicating roughly how busy the GIL was.
+knocker.reset_contention_metric()  # reset timers and meteric calculation
+
+... some more smart code ...
+
+knocker.stop()
+
+knocker.contention_metric  # will stay the same after `stop()` is called.
+
 ```
 
 ---
