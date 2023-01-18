@@ -1,4 +1,6 @@
 #[deny(missing_docs)]
+use parking_lot::{const_rwlock, RwLock};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::{
     exceptions::{PyBrokenPipeError, PyTimeoutError, PyValueError},
@@ -6,7 +8,10 @@ use pyo3::{
 };
 use std::{
     mem::take,
-    sync::mpsc::{channel, RecvTimeoutError, Sender},
+    sync::{
+        mpsc::{channel, RecvTimeoutError, Sender},
+        Arc,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -34,9 +39,9 @@ fn gilknocker(_py: Python, m: &PyModule) -> PyResult<()> {
 #[pyclass(name = "KnockKnock")]
 #[derive(Default)]
 pub struct KnockKnock {
-    handle: Option<thread::JoinHandle<f32>>,
+    handle: Option<thread::JoinHandle<()>>,
     channel: Option<Sender<bool>>,
-    contention_metric: Option<f32>,
+    contention_metric: Option<Arc<RwLock<f32>>>,
     interval: Duration,
     timeout: Duration,
 }
@@ -68,7 +73,7 @@ impl KnockKnock {
     /// contention.
     #[getter]
     pub fn contention_metric(&self) -> Option<f32> {
-        self.contention_metric
+        self.contention_metric.as_ref().map(|v| *(*v).read())
     }
 
     /// Start polling the GIL to check if it's locked.
@@ -76,6 +81,8 @@ impl KnockKnock {
         let (send, recv) = channel();
         self.channel = Some(send);
 
+        let contention_metric = Arc::new(const_rwlock(0_f32));
+        self.contention_metric = Some(contention_metric.clone());
         let interval = self.interval;
         let handle = py.allow_threads(move || {
             thread::spawn(move || {
@@ -83,13 +90,16 @@ impl KnockKnock {
                 let runtime = Instant::now();
                 while recv
                     .recv_timeout(interval)
-                    .map_err(|e| e != RecvTimeoutError::Disconnected)
-                    .unwrap_or(true)
+                    .unwrap_or_else(|e| e != RecvTimeoutError::Disconnected)
                 {
                     let start = Instant::now();
                     time_to_acquire += Python::with_gil(move |_py| start.elapsed());
+                    {
+                        let mut cm = (*contention_metric).write();
+                        *cm = time_to_acquire.as_micros() as f32
+                            / runtime.elapsed().as_micros() as f32;
+                    }
                 }
-                time_to_acquire.as_micros() as f32 / runtime.elapsed().as_micros() as f32
             })
         });
         self.handle = Some(handle);
@@ -107,11 +117,13 @@ impl KnockKnock {
                     while !handle.is_finished() {
                         thread::sleep(Duration::from_millis(100));
                         if start.elapsed() > self.timeout {
-                            return Err(PyTimeoutError::new_err("Failed to join knocker thread."));
+                            return Err(PyTimeoutError::new_err("Failed to stop knocker thread."));
                         }
                     }
                 }
-                self.contention_metric = handle.join().ok();
+                handle
+                    .join()
+                    .map_err(|_| PyRuntimeError::new_err("Failed to join knocker thread."))?;
                 Ok(())
             }
             None => Err(PyValueError::new_err(
