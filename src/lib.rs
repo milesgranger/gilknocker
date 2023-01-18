@@ -1,16 +1,15 @@
 #[deny(missing_docs)]
 use parking_lot::{const_rwlock, RwLock};
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::ffi::{PyEval_InitThreads, PyEval_ThreadsInitialized};
 use pyo3::prelude::*;
 use pyo3::{
-    exceptions::{PyBrokenPipeError, PyTimeoutError, PyValueError},
+    exceptions::{PyBrokenPipeError, PyRuntimeError, PyTimeoutError, PyValueError},
     PyResult,
 };
 use std::{
     mem::take,
     sync::{
-        mpsc::{channel, RecvTimeoutError, Sender},
+        mpsc::{channel, Receiver, RecvTimeoutError, Sender},
         Arc,
     },
     thread,
@@ -30,6 +29,9 @@ enum Message {
     Reset,
 }
 
+/// Acknowledgement from monitoring thread
+struct Ack;
+
 /// Struct for polling, knocking on the GIL,
 /// checking if it's locked in the current thread
 ///
@@ -47,7 +49,8 @@ enum Message {
 #[derive(Default)]
 pub struct KnockKnock {
     handle: Option<thread::JoinHandle<()>>,
-    channel: Option<Sender<Message>>,
+    tx: Option<Sender<Message>>,
+    rx: Option<Receiver<Ack>>,
     contention_metric: Arc<RwLock<f32>>,
     interval: Duration,
     timeout: Duration,
@@ -85,16 +88,18 @@ impl KnockKnock {
 
     /// Reset the contention metric/monitoring state
     pub fn reset_contention_metric(&mut self) -> PyResult<()> {
-        match &self.channel {
-            Some(channel) => {
-                channel
-                    .send(Message::Reset)
+        match &self.tx {
+            Some(tx) => {
+                // notify thread to reset metric and timers
+                tx.send(Message::Reset)
                     .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-                // need to wait for thread to catch and process reset
-                while *(*self.contention_metric).read() > 0.005 {
-                    thread::sleep(Duration::from_millis(1));
-                }
+                // wait for ack
+                self.rx
+                    .as_ref()
+                    .unwrap() // if tx is set, then rx is as well.
+                    .recv_timeout(self.timeout)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
                 Ok(())
             }
             None => Err(PyValueError::new_err(
@@ -105,14 +110,19 @@ impl KnockKnock {
 
     /// Start polling the GIL to check if it's locked.
     pub fn start(&mut self, py: Python) -> () {
-        let (send, recv) = channel();
-        self.channel = Some(send);
-
         unsafe {
             if PyEval_ThreadsInitialized() == 0 {
                 PyEval_InitThreads();
             }
         }
+
+        // send messages to thread
+        let (tx, recv) = channel();
+        self.tx = Some(tx);
+
+        // recieve messages from thread
+        let (send, rx) = channel();
+        self.rx = Some(rx);
 
         let contention_metric = Arc::new(const_rwlock(0_f32));
         self.contention_metric = contention_metric.clone();
@@ -131,6 +141,7 @@ impl KnockKnock {
                                 time_to_acquire = Duration::from_millis(0);
                                 runtime = Instant::now();
                                 *(*contention_metric).write() = 0_f32;
+                                send.send(Ack).unwrap(); // notify reset done
                             }
                         },
                         Err(RecvTimeoutError::Disconnected) => break,
@@ -164,7 +175,7 @@ impl KnockKnock {
     pub fn stop(&mut self) -> PyResult<()> {
         match take(&mut self.handle) {
             Some(handle) => {
-                if let Some(send) = take(&mut self.channel) {
+                if let Some(send) = take(&mut self.tx) {
                     send.send(Message::Stop)
                         .map_err(|e| PyBrokenPipeError::new_err(e.to_string()))?;
 
