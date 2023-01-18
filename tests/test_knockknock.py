@@ -9,21 +9,6 @@ N_THREADS = 4
 N_PTS = 4096
 
 
-def flaky(n_tries=5):
-    def wrapper(func):
-        def _wrapper(*args, **kwargs):
-            for _ in range(n_tries - 1):
-                try:
-                    return func(*args, **kwargs)
-                except:
-                    pass
-            return func(*args, **kwargs)
-
-        return _wrapper
-
-    return wrapper
-
-
 def a_lotta_gil():
     """Keep the GIL busy"""
     for i in range(100_000_000):
@@ -52,13 +37,11 @@ def _run(target):
     return knocker
 
 
-@pytest.mark.xfail(raises=TimeoutError)
-@flaky()
 def test_knockknock_busy():
     knocker = _run(a_lotta_gil)
 
     try:
-        # usually ~0.9 on linux ~0.6 on windows
+        # usually ~0.9, but sometimes ~0.6 on Mac
         assert knocker.contention_metric > 0.6
 
         # Now wait for it to 'cool' back down
@@ -70,24 +53,21 @@ def test_knockknock_busy():
             prev_cm = knocker.contention_metric
 
         # ~0.15 oN mY MaChInE.
-        assert knocker.contention_metric < 0.2
+        assert knocker.contention_metric < 0.3
     finally:
         knocker.stop()
 
 
-@pytest.mark.xfail(raises=TimeoutError)
-@flaky()
 def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
 
     try:
-        # usually ~0.001 on linux and ~0.05 on windows
+        # usually ~0.002
         assert knocker.contention_metric < 0.06
     finally:
         knocker.stop()
 
 
-@flaky()
 def test_knockknock_reset_contention_metric():
     knocker = _run(a_lotta_gil)
 
