@@ -63,8 +63,11 @@ knocker.contention_metric  # will stay the same after `stop()` is called.
 ### How will this impact my program?
 
 Short answer, it depends, but probably not much. As stated above, the more frequent the 
-monitoring interval, the more likely GIL bound tasks will be affected. This is demonstrated 
-in the [benchmarks](./benchmarks) testing. Below is a summary of benchmarking two different 
+monitoring interval, the more likely non-GIL bound programs will be affected, since there is 
+more room for contention. In GIL heavy programs, the monitoring thread will spend most of its 
+time simply waiting for a lock. This is demonstrated in the [benchmarks](./benchmarks) testing.
+
+Below is a summary of benchmarking two different 
 functions, one which uses the GIL, and one which releases it. For `interval=None` this means 
 no polling was used, effectively just running the function without `gilknocker`. Otherwise, 
 the interval represents the value passed to `KnockKnock(interval_micros=interval)`
