@@ -17,9 +17,8 @@ def a_little_gil():
         x[:] = np.fft.fft2(x).real
 
 
-
-@pytest.mark.parametrize('interval', (None, 10, 100, 1_000, 10_000, 100_000))
-@pytest.mark.parametrize('target', (a_lotta_gil, a_little_gil))
+@pytest.mark.parametrize("interval", (None, 10, 100, 1_000, 10_000, 100_000))
+@pytest.mark.parametrize("target", (a_lotta_gil, a_little_gil))
 def test_bench(benchmark, interval: int, target):
     if interval:
         knocker = KnockKnock(interval)
@@ -28,4 +27,4 @@ def test_bench(benchmark, interval: int, target):
     benchmark(target)
 
     if interval:
-        knocker.stop()   
+        knocker.stop()
