@@ -132,13 +132,15 @@ impl KnockKnock {
             thread::spawn(move || {
                 let mut time_to_acquire = Duration::from_millis(0);
                 let mut runtime = Instant::now();
-                let mut handle: Option<thread::JoinHandle<Duration>> = None;
+
                 let gil_check_thread = || {
                     thread::spawn(|| {
                         let start = Instant::now();
-                        Python::with_gil(move |_py| start.elapsed())
+                        Python::with_gil(move |_| start.elapsed())
                     })
                 };
+                let mut handle = gil_check_thread();
+
                 loop {
                     match recv.recv_timeout(interval) {
                         Ok(message) => match message {
@@ -151,22 +153,15 @@ impl KnockKnock {
                             }
                         },
                         Err(RecvTimeoutError::Disconnected) => break,
-                        Err(RecvTimeoutError::Timeout) => match handle {
-                            Some(hdl) => {
-                                if hdl.is_finished() {
-                                    time_to_acquire += hdl.join().unwrap();
-                                    let mut cm = (*contention_metric).write();
-                                    *cm = time_to_acquire.as_micros() as f32
-                                        / runtime.elapsed().as_micros() as f32;
-                                    handle = Some(gil_check_thread());
-                                } else {
-                                    handle = Some(hdl);
-                                }
+                        Err(RecvTimeoutError::Timeout) => {
+                            if handle.is_finished() {
+                                time_to_acquire += handle.join().unwrap();
+                                let mut cm = (*contention_metric).write();
+                                *cm = time_to_acquire.as_micros() as f32
+                                    / runtime.elapsed().as_micros() as f32;
+                                handle = gil_check_thread();
                             }
-                            None => {
-                                handle = Some(gil_check_thread());
-                            }
-                        },
+                        }
                     }
                 }
             })
