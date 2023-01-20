@@ -133,6 +133,12 @@ impl KnockKnock {
                 let mut time_to_acquire = Duration::from_millis(0);
                 let mut runtime = Instant::now();
                 let mut handle: Option<thread::JoinHandle<Duration>> = None;
+                let gil_check_thread = || {
+                    thread::spawn(|| {
+                        let start = Instant::now();
+                        Python::with_gil(move |_py| start.elapsed())
+                    })
+                };
                 loop {
                     match recv.recv_timeout(interval) {
                         Ok(message) => match message {
@@ -152,16 +158,13 @@ impl KnockKnock {
                                     let mut cm = (*contention_metric).write();
                                     *cm = time_to_acquire.as_micros() as f32
                                         / runtime.elapsed().as_micros() as f32;
-                                    handle = None;
+                                    handle = Some(gil_check_thread());
                                 } else {
                                     handle = Some(hdl);
                                 }
                             }
                             None => {
-                                handle = Some(thread::spawn(move || {
-                                    let start = Instant::now();
-                                    Python::with_gil(move |_py| start.elapsed())
-                                }));
+                                handle = Some(gil_check_thread());
                             }
                         },
                     }
