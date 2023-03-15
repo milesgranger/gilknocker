@@ -52,26 +52,53 @@ pub struct KnockKnock {
     tx: Option<Sender<Message>>,
     rx: Option<Receiver<Ack>>,
     contention_metric: Arc<RwLock<f32>>,
-    interval: Duration,
+    polling_interval: Duration,
+    sampling_interval: Duration,
     timeout: Duration,
 }
 
 #[pymethods]
 impl KnockKnock {
-    /// Initialize with interval (microseconds), as the time between trying to acquire the GIL,
-    /// and timeout (seconds) as time to wait for monitoring thread to exit.
+    /// Initialize with ``polling_interval_micros``, as the time between trying to acquire the GIL,
+    /// ``sampling_interval_micros`` as the time between the polling routine, and ``timeout_secs``
+    /// as time to wait for monitoring thread to exit.
+    ///
+    /// A more frequent polling interval will give a more accurate reflection of actual GIL contention,
+    /// and a more frequent sampling interval will increase the 'real time' reflection of GIL contention.
+    /// Alternatively a less frequent sampling interval will come to reflect an average GIL contention of
+    /// the running program.
+    ///
+    /// polling_interval_micros: Optional[int]
+    ///     How frequently to ask to aquire the GIL, defaults to 1_000 microseconds (1ms)
+    /// sampling_interval_micros: Optional[int]
+    ///     How frequently and long to sample the GIL contention at polling interval,
+    ///     defaults to 10x polling_interval_micros.
+    /// timeout_secs: Optional[int]
+    ///     Timeout when attempting to stop or send messages to monitoring thread. Defaults to sum of polling
+    ///     and sampling intervals plus 1 second.
     #[new]
-    pub fn __new__(interval_micros: Option<u64>, timeout_secs: Option<u64>) -> PyResult<Self> {
-        let interval = Duration::from_micros(interval_micros.unwrap_or_else(|| 10));
-        let timeout = Duration::from_secs(timeout_secs.unwrap_or_else(|| 5));
-        if timeout <= interval {
-            return Err(PyValueError::new_err(format!(
-                "`interval` ({:?}) must be less than `timeout` ({:?})",
-                interval, timeout
-            )));
+    pub fn __new__(
+        polling_interval_micros: Option<u64>,
+        sampling_interval_micros: Option<u64>,
+        timeout_secs: Option<u64>,
+    ) -> PyResult<Self> {
+        let polling_interval =
+            Duration::from_micros(polling_interval_micros.unwrap_or_else(|| 1000));
+        let sampling_interval = Duration::from_micros(
+            sampling_interval_micros.unwrap_or_else(|| polling_interval.as_micros() as u64 * 10),
+        );
+
+        let timeout = Duration::from_secs(timeout_secs.unwrap_or_else(|| {
+            (polling_interval + sampling_interval + Duration::from_secs(1)).as_secs() as u64
+        }));
+        if timeout <= polling_interval + sampling_interval {
+            return Err(PyValueError::new_err(
+                "timeout must be greater than the sum of polling and sampling intervals",
+            ));
         }
         Ok(KnockKnock {
-            interval,
+            polling_interval,
+            sampling_interval,
             timeout,
             ..Default::default()
         })
@@ -127,39 +154,58 @@ impl KnockKnock {
         let contention_metric = Arc::new(const_rwlock(0_f32));
         self.contention_metric = contention_metric.clone();
 
-        let interval = self.interval;
+        let polling_interval = self.polling_interval;
+        let sampling_interval = self.sampling_interval;
+
         let handle = py.allow_threads(move || {
             thread::spawn(move || {
-                let mut time_to_acquire = Duration::from_millis(0);
-                let mut runtime = Instant::now();
+                let mut total_time_waiting = Duration::from_millis(0);
+                let mut total_time_sampling = Duration::from_millis(0);
 
-                let gil_check_thread = || {
-                    thread::spawn(|| {
-                        let start = Instant::now();
-                        Python::with_gil(move |_| start.elapsed())
+                let sample_gil = || {
+                    thread::spawn(move || {
+                        let time_sampling = Instant::now();
+                        let mut time_waiting = Duration::from_secs(0);
+
+                        // Begin polling gil for duration of sampling interval
+                        while time_sampling.elapsed() < sampling_interval {
+                            let start = Instant::now();
+                            time_waiting += Python::with_gil(move |_| start.elapsed());
+                            thread::sleep(polling_interval);
+                        }
+                        (time_waiting, time_sampling.elapsed())
                     })
                 };
-                let mut handle = gil_check_thread();
 
+                let mut handle = Some(sample_gil());
                 loop {
-                    match recv.recv_timeout(interval) {
+                    match recv.recv_timeout(sampling_interval) {
                         Ok(message) => match message {
                             Message::Stop => break,
                             Message::Reset => {
-                                time_to_acquire = Duration::from_millis(0);
-                                runtime = Instant::now();
+                                total_time_waiting = Duration::from_millis(0);
+                                total_time_sampling = Duration::from_millis(0);
                                 *(*contention_metric).write() = 0_f32;
                                 send.send(Ack).unwrap(); // notify reset done
                             }
                         },
                         Err(RecvTimeoutError::Disconnected) => break,
                         Err(RecvTimeoutError::Timeout) => {
-                            if handle.is_finished() {
-                                time_to_acquire += handle.join().unwrap();
+                            if handle
+                                .as_ref()
+                                .map(|hdl| hdl.is_finished())
+                                .unwrap_or_else(|| false)
+                            {
+                                let (time_waiting, time_sampling) =
+                                    take(&mut handle).unwrap().join().unwrap();
+                                total_time_sampling += time_sampling;
+                                total_time_waiting += time_waiting;
                                 let mut cm = (*contention_metric).write();
-                                *cm = time_to_acquire.as_micros() as f32
-                                    / runtime.elapsed().as_micros() as f32;
-                                handle = gil_check_thread();
+                                *cm = total_time_waiting.as_micros() as f32
+                                    / total_time_sampling.as_micros() as f32;
+                                debug_assert!(handle.is_none()); // handle reset when done
+                            } else if handle.is_none() {
+                                handle = Some(sample_gil());
                             }
                         }
                     }
@@ -169,30 +215,31 @@ impl KnockKnock {
         self.handle = Some(handle);
     }
 
+    /// Is the GIL knocker thread running?
+    #[getter]
+    pub fn is_running(&self) -> bool {
+        self.handle.is_some()
+    }
+
     /// Stop polling the GIL.
     pub fn stop(&mut self) -> PyResult<()> {
-        match take(&mut self.handle) {
-            Some(handle) => {
-                if let Some(send) = take(&mut self.tx) {
-                    send.send(Message::Stop)
-                        .map_err(|e| PyBrokenPipeError::new_err(e.to_string()))?;
+        if let Some(handle) = take(&mut self.handle) {
+            if let Some(send) = take(&mut self.tx) {
+                send.send(Message::Stop)
+                    .map_err(|e| PyBrokenPipeError::new_err(e.to_string()))?;
 
-                    let start = Instant::now();
-                    while !handle.is_finished() {
-                        thread::sleep(Duration::from_millis(100));
-                        if start.elapsed() > self.timeout {
-                            return Err(PyTimeoutError::new_err("Failed to stop knocker thread."));
-                        }
+                let start = Instant::now();
+                while !handle.is_finished() {
+                    if start.elapsed() > self.timeout {
+                        return Err(PyTimeoutError::new_err("Failed to stop knocker thread."));
                     }
+                    thread::sleep(Duration::from_millis(100));
                 }
-                handle
-                    .join()
-                    .map_err(|_| PyRuntimeError::new_err("Failed to join knocker thread."))?;
-                Ok(())
             }
-            None => Err(PyValueError::new_err(
-                "Appears `start` was not called, no handle.",
-            )),
+            handle
+                .join()
+                .map_err(|_| PyRuntimeError::new_err("Failed to join knocker thread."))?;
         }
+        Ok(())
     }
 }

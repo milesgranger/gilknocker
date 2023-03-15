@@ -4,8 +4,8 @@ keywords = ["GIL"]
 requires-python = ">=3.7"
 
 [project.urls]
-homepage = "https://github.com/milesgranger/gil-knocker"
-repository = "https://github.com/milesgranger/gil-knocker"
+homepage = "https://github.com/milesgranger/gilknocker"
+repository = "https://github.com/milesgranger/gilknocker"
 
 [build-system]
 requires = ["maturin>=0.14,<0.15"]

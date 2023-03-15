@@ -1,3 +1,4 @@
+import random
 import pytest
 import numpy as np
 import threading
@@ -6,7 +7,7 @@ from gilknocker import KnockKnock
 
 
 N_THREADS = 4
-N_PTS = 4096
+N_PTS = 2048
 
 
 def a_lotta_gil():
@@ -17,13 +18,19 @@ def a_lotta_gil():
 
 def a_little_gil():
     """Work which releases the GIL"""
-    for i in range(2):
+    for i in range(10):
         x = np.random.randn(N_PTS, N_PTS)
         x[:] = np.fft.fft2(x).real
 
 
+def some_gil():
+    for i in range(10_000):
+        time.sleep(random.random() / 100_000)
+        _ = b"1" * 2048**2
+
+
 def _run(target):
-    knocker = KnockKnock(interval_micros=1000, timeout_secs=1)
+    knocker = KnockKnock(polling_interval_micros=1000, timeout_secs=1)
     knocker.start()
     threads = []
     for i in range(N_THREADS):
@@ -53,7 +60,7 @@ def test_knockknock_busy():
             prev_cm = knocker.contention_metric
 
         # ~0.15 oN mY MaChInE.
-        assert knocker.contention_metric < 0.3
+        assert knocker.contention_metric < 0.5
     finally:
         knocker.stop()
 
@@ -62,8 +69,18 @@ def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
 
     try:
-        # usually ~0.002
-        assert knocker.contention_metric < 0.06
+        # usually ~0.002, but can be up to ~0.15 on windows
+        assert knocker.contention_metric < 0.2
+    finally:
+        knocker.stop()
+
+
+def test_knockknock_some_gil():
+    knocker = _run(some_gil)
+
+    try:
+        # usually ~0.75ish, but ~0.4 on mac
+        assert 0.3 < knocker.contention_metric < 0.8
     finally:
         knocker.stop()
 
