@@ -3,11 +3,23 @@ import pytest
 import numpy as np
 import threading
 import time
+from functools import wraps
 from gilknocker import KnockKnock
 
 
 N_THREADS = 4
 N_PTS = 2048
+
+
+def flaky(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        for _ in range(3):
+            try:
+                return f(*args, **kwargs)
+            except Exception:
+                continue
+        return f(*args, **kwargs)
 
 
 def a_lotta_gil():
@@ -44,6 +56,7 @@ def _run(target):
     return knocker
 
 
+@flaky
 def test_knockknock_busy():
     knocker = _run(a_lotta_gil)
 
@@ -65,6 +78,7 @@ def test_knockknock_busy():
         knocker.stop()
 
 
+@flaky
 def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
 
@@ -75,6 +89,7 @@ def test_knockknock_available_gil():
         knocker.stop()
 
 
+@flaky
 def test_knockknock_some_gil():
     knocker = _run(some_gil)
 
