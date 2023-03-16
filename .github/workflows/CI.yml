@@ -46,7 +46,7 @@ jobs:
       - name: Python UnitTest
         run: |
           pip install -r requirements-dev.txt
-          python -m pytest -vs tests
+          python -m pytest tests
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

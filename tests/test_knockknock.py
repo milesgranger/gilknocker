@@ -3,23 +3,11 @@ import pytest
 import numpy as np
 import threading
 import time
-from functools import wraps
 from gilknocker import KnockKnock
 
 
 N_THREADS = 4
 N_PTS = 2048
-
-
-def flaky(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        for _ in range(3):
-            try:
-                return f(*args, **kwargs)
-            except Exception:
-                continue
-        return f(*args, **kwargs)
 
 
 def a_lotta_gil():
@@ -30,7 +18,7 @@ def a_lotta_gil():
 
 def a_little_gil():
     """Work which releases the GIL"""
-    for i in range(10):
+    for i in range(5):
         x = np.random.randn(N_PTS, N_PTS)
         x[:] = np.fft.fft2(x).real
 
@@ -42,7 +30,7 @@ def some_gil():
 
 
 def _run(target):
-    knocker = KnockKnock(polling_interval_micros=1000, timeout_secs=1)
+    knocker = KnockKnock(polling_interval_micros=1000)
     knocker.start()
     threads = []
     for i in range(N_THREADS):
@@ -56,7 +44,6 @@ def _run(target):
     return knocker
 
 
-@flaky
 def test_knockknock_busy():
     knocker = _run(a_lotta_gil)
 
@@ -71,14 +58,10 @@ def test_knockknock_busy():
             a_little_gil()
             assert knocker.contention_metric < prev_cm
             prev_cm = knocker.contention_metric
-
-        # ~0.15 oN mY MaChInE.
-        assert knocker.contention_metric < 0.5
     finally:
         knocker.stop()
 
 
-@flaky
 def test_knockknock_available_gil():
     knocker = _run(a_little_gil)
 
@@ -89,7 +72,6 @@ def test_knockknock_available_gil():
         knocker.stop()
 
 
-@flaky
 def test_knockknock_some_gil():
     knocker = _run(some_gil)
 

@@ -1,6 +1,6 @@
 [package]
 name = "gil-knocker"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Miles Granger <miles59923@gmail.com>"]
 license = "MIT"

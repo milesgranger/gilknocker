@@ -32,9 +32,20 @@ to align with what is reported by `py-spy` when running the same [test case](./t
 This works by spawning a thread which, at regular intervals, re-acquires the GIL and checks 
 how long it took for the GIL to answer.
 
-Note, the `polling_interval_micros` and `sampling_interval_micros` are configurable. The lower the value, the 
-more accurate the metric, but will be more likely to slow your
-program down.. because it will play a larger role in competing for the GIL's attention.
+Note, the `polling_interval_micros`, `sampling_interval_micros`, and `sleeping_interval_micros` 
+are configurable. 
+
+- `polling_interval_micros`
+  - How frequently to re-acquire the GIL and measure how long it took to acquire. The more frequent, the
+    more likely the contention metric will represent accurate GIL contention. A good value for this is 1-1000.
+
+- `sampling_interval_micros`
+  - How _long_ to run the polling routine. If this is 1ms, then for 1ms it will try to re-acquire the GIL 
+    at `polling_interval_micros` frequency. Defaults to 10x `sampling_interval_micros`
+
+- `sleeping_interval_micros`
+  - How long to sleep between sampling routines. Defaults to 100x `polling_interval_micros`
+
 
 ### Use
 
@@ -44,7 +55,13 @@ Look at the [tests](./tests)
 
 from gilknocker import KnockKnock
 
-knocker = KnockKnock(polling_interval_micros=1_000, sampling_interval_micros=10_000, timeout_secs=1)
+# These two are equivalent. 
+knocker = KnockKnock(1_000) 
+knocker = KnockKnock(
+  polling_interval_micros=1_000, 
+  sampling_interval_micros=10_000, 
+  sleeping_interval_micros=100_000
+)
 knocker.start()
 
 ... smart code here ...
@@ -72,7 +89,8 @@ time simply waiting for a lock. This is demonstrated in the [benchmarks](./bench
 
 In general, it appears that `polling_interval_micros=1_000` is a good tradeoff in terms of accurate
 GIL contention metric and the resulting `sampling_interval_micros=10_000` (defaults to 10x polling interval)
-is high enough to relax performance impact a bit.
+is high enough to relax performance impact a bit when combined with `sleeping_interval_micros=100_000` 
+(defaults to 100x polling interval); but feel free to play with these to conform to your needs.
 
 Below is a summary of benchmarking two different 
 functions, one which uses the GIL, and one which releases it. For `interval=None` this means 
