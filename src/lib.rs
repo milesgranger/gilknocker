@@ -3,7 +3,7 @@ use parking_lot::{const_rwlock, RwLock};
 use pyo3::ffi::{PyEval_InitThreads, PyEval_ThreadsInitialized};
 use pyo3::prelude::*;
 use pyo3::{
-    exceptions::{PyBrokenPipeError, PyRuntimeError, PyTimeoutError, PyValueError},
+    exceptions::{PyBrokenPipeError, PyRuntimeError, PyTimeoutError},
     PyResult,
 };
 use std::{
