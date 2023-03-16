@@ -121,24 +121,19 @@ impl KnockKnock {
 
     /// Reset the contention metric/monitoring state
     pub fn reset_contention_metric(&mut self) -> PyResult<()> {
-        match &self.tx {
-            Some(tx) => {
-                // notify thread to reset metric and timers
-                tx.send(Message::Reset)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        if let Some(tx) = &self.tx {
+            // notify thread to reset metric and timers
+            tx.send(Message::Reset)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-                // wait for ack
-                self.rx
-                    .as_ref()
-                    .unwrap() // if tx is set, then rx is as well.
-                    .recv_timeout(self.timeout)
-                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-                Ok(())
-            }
-            None => Err(PyValueError::new_err(
-                "Does not appear `start` was called, nothing to reset.",
-            )),
+            // wait for ack
+            self.rx
+                .as_ref()
+                .unwrap() // if tx is set, then rx is as well.
+                .recv_timeout(self.timeout)
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         }
+        Ok(())
     }
 
     /// Start polling the GIL to check if it's locked.
