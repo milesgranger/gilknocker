@@ -54,6 +54,7 @@ pub struct KnockKnock {
     contention_metric: Arc<RwLock<f32>>,
     polling_interval: Duration,
     sampling_interval: Duration,
+    sleeping_interval: Duration,
     timeout: Duration,
 }
 
@@ -71,34 +72,39 @@ impl KnockKnock {
     /// polling_interval_micros: Optional[int]
     ///     How frequently to ask to aquire the GIL, defaults to 1_000 microseconds (1ms)
     /// sampling_interval_micros: Optional[int]
-    ///     How frequently and long to sample the GIL contention at polling interval,
+    ///     How long to sample the GIL contention at polling interval,
     ///     defaults to 10x polling_interval_micros.
-    /// timeout_secs: Optional[int]
-    ///     Timeout when attempting to stop or send messages to monitoring thread. Defaults to sum of polling
-    ///     and sampling intervals plus 1 second.
+    /// sleeping_interval_micros: Optional[int]
+    ///     How long to sleep without sampling the GIL, defaults to 100x polling_interval_micros.
+    /// timeout_micros: Optional[int]
+    ///     Timeout when attempting to stop or send messages to monitoring thread. Defaults to
+    ///     max(sleeping_interval_micros, sampling_interval_micros, polling_interval_micros) + 1ms
     #[new]
     pub fn __new__(
         polling_interval_micros: Option<u64>,
         sampling_interval_micros: Option<u64>,
-        timeout_secs: Option<u64>,
+        sleeping_interval_micros: Option<u64>,
+        timeout_micros: Option<u64>,
     ) -> PyResult<Self> {
         let polling_interval =
             Duration::from_micros(polling_interval_micros.unwrap_or_else(|| 1000));
         let sampling_interval = Duration::from_micros(
             sampling_interval_micros.unwrap_or_else(|| polling_interval.as_micros() as u64 * 10),
         );
-
-        let timeout = Duration::from_secs(timeout_secs.unwrap_or_else(|| {
-            (polling_interval + sampling_interval + Duration::from_secs(1)).as_secs() as u64
-        }));
-        if timeout <= polling_interval + sampling_interval {
-            return Err(PyValueError::new_err(
-                "timeout must be greater than the sum of polling and sampling intervals",
-            ));
-        }
+        let sleeping_interval = Duration::from_micros(
+            sleeping_interval_micros.unwrap_or_else(|| polling_interval.as_micros() as u64 * 100),
+        );
+        let timeout = match timeout_micros {
+            Some(micros) => Duration::from_micros(micros),
+            None => Duration::from_micros(
+                std::cmp::max(sampling_interval.as_micros(), sleeping_interval.as_micros()) as u64
+                    + 1_000,
+            ),
+        };
         Ok(KnockKnock {
             polling_interval,
             sampling_interval,
+            sleeping_interval,
             timeout,
             ..Default::default()
         })
@@ -156,6 +162,7 @@ impl KnockKnock {
 
         let polling_interval = self.polling_interval;
         let sampling_interval = self.sampling_interval;
+        let sleeping_interval = self.sleeping_interval;
 
         let handle = py.allow_threads(move || {
             thread::spawn(move || {
@@ -179,7 +186,7 @@ impl KnockKnock {
 
                 let mut handle = Some(sample_gil());
                 loop {
-                    match recv.recv_timeout(sampling_interval) {
+                    match recv.recv_timeout(sleeping_interval) {
                         Ok(message) => match message {
                             Message::Stop => break,
                             Message::Reset => {
