@@ -142,7 +142,7 @@ impl KnockKnock {
     }
 
     /// Start polling the GIL to check if it's locked.
-    fn start(mut slf: PyRefMut<'_, Self>) -> () {
+    fn start(mut slf: PyRefMut<'_, Self>) -> PyResult<()> {
         unsafe {
             if PyEval_ThreadsInitialized() == 0 {
                 PyEval_InitThreads();
@@ -156,12 +156,11 @@ impl KnockKnock {
             let ptr = slf.as_ptr();
             let py = slf.py();
             let __knocker = unsafe { PyObject::from_borrowed_ptr(py, ptr) };
-            let atexit = py.import("atexit").unwrap();
+            let atexit = py.import("atexit")?;
             let locals = pyo3::types::PyDict::new(py);
-            locals.set_item("__knocker", __knocker).unwrap();
-            locals.set_item("atexit", atexit).unwrap();
-            py.run("atexit.register(__knocker.stop)", None, Some(locals))
-                .unwrap();
+            locals.set_item("__knocker", __knocker)?;
+            locals.set_item("atexit", atexit)?;
+            py.run("atexit.register(__knocker.stop)", None, Some(locals))?;
         }
 
         let self_: &mut KnockKnock = slf.deref_mut();
@@ -237,6 +236,7 @@ impl KnockKnock {
             })
         };
         self_.handle = Some(handle);
+        Ok(())
     }
 
     /// Is the GIL knocker thread running?
@@ -259,6 +259,7 @@ impl KnockKnock {
                     if start.elapsed() > self.timeout {
                         let warning = py.get_type::<pyo3::exceptions::PyUserWarning>();
                         PyErr::warn(py, warning, "Timed out waiting for sampling thread.", 0)?;
+                        return Ok(());
                     }
                     thread::sleep(Duration::from_millis(100));
                 }
