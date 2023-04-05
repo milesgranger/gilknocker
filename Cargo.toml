@@ -19,5 +19,5 @@ codegen-units = 1
 opt-level = 3
 
 [dependencies]
-pyo3 = { version = "0.17.3", features = ["extension-module"] }
+pyo3 = { version = "0.18.2", features = ["extension-module"] }
 parking_lot = "^0.12"

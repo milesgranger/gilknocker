@@ -2,10 +2,7 @@
 use parking_lot::{const_rwlock, RwLock};
 use pyo3::ffi::{PyEval_InitThreads, PyEval_ThreadsInitialized};
 use pyo3::prelude::*;
-use pyo3::{
-    exceptions::{PyBrokenPipeError, PyRuntimeError, PyTimeoutError},
-    PyResult,
-};
+use pyo3::PyResult;
 use std::{
     mem::take,
     sync::{
@@ -120,19 +117,26 @@ impl KnockKnock {
     }
 
     /// Reset the contention metric/monitoring state
-    pub fn reset_contention_metric(&mut self) -> PyResult<()> {
+    pub fn reset_contention_metric(&mut self, py: Python) -> PyResult<()> {
         if let Some(tx) = &self.tx {
             // notify thread to reset metric and timers
-            tx.send(Message::Reset)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            if let Err(e) = tx.send(Message::Reset) {
+                let warning = py.get_type::<pyo3::exceptions::PyUserWarning>();
+                PyErr::warn(py, warning, &e.to_string(), 0)?;
+            }
 
             // wait for ack
-            self.rx
+            if let Err(e) = self
+                .rx
                 .as_ref()
                 .unwrap() // if tx is set, then rx is as well.
                 .recv_timeout(self.timeout)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            {
+                let warning = py.get_type::<pyo3::exceptions::PyUserWarning>();
+                PyErr::warn(py, warning, &e.to_string(), 0)?;
+            }
         }
+        *(*self.contention_metric).write() = 0f32;
         Ok(())
     }
 
@@ -224,23 +228,24 @@ impl KnockKnock {
     }
 
     /// Stop polling the GIL.
-    pub fn stop(&mut self) -> PyResult<()> {
+    pub fn stop(&mut self, py: Python) -> PyResult<()> {
         if let Some(handle) = take(&mut self.handle) {
             if let Some(send) = take(&mut self.tx) {
-                send.send(Message::Stop)
-                    .map_err(|e| PyBrokenPipeError::new_err(e.to_string()))?;
+                if let Err(e) = send.send(Message::Stop) {
+                    let warning = py.get_type::<pyo3::exceptions::PyUserWarning>();
+                    PyErr::warn(py, warning, &e.to_string(), 0)?;
+                }
 
                 let start = Instant::now();
                 while !handle.is_finished() {
                     if start.elapsed() > self.timeout {
-                        return Err(PyTimeoutError::new_err("Failed to stop knocker thread."));
+                        let warning = py.get_type::<pyo3::exceptions::PyUserWarning>();
+                        PyErr::warn(py, warning, "Timed out waiting for sampling thread.", 0)?;
                     }
                     thread::sleep(Duration::from_millis(100));
                 }
             }
-            handle
-                .join()
-                .map_err(|_| PyRuntimeError::new_err("Failed to join knocker thread."))?;
+            handle.join().ok(); // Just ignore any potential panic from sampling thread.
         }
         Ok(())
     }
