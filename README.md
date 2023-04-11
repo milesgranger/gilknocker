@@ -41,7 +41,7 @@ are configurable.
 
 - `sampling_interval_micros`
   - How _long_ to run the polling routine. If this is 1ms, then for 1ms it will try to re-acquire the GIL 
-    at `polling_interval_micros` frequency. Defaults to 10x `sampling_interval_micros`
+    at `polling_interval_micros` frequency. Defaults to 10x `polling_interval_micros`
 
 - `sleeping_interval_micros`
   - How long to sleep between sampling routines. Defaults to 100x `polling_interval_micros`
