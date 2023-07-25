@@ -128,6 +128,84 @@ jobs:
         name: wheels
         path: dist
 
+  pypy-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python:
+          - pypy-3.7
+          - pypy-3.8
+          - pypy-3.9
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{matrix.python}}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Build Wheels - gilknocker
+      uses: PyO3/maturin-action@v1
+      with:
+        target: ${{ matrix.target }}
+        manylinux: auto
+        args: -i ${{ matrix.python }} --release --out dist
+    - name: Python UnitTest - gilknocker
+      run: |
+        pip install gilknocker --no-index --find-links dist
+        pypy -c "import gilknocker"
+    - name: Upload wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels
+        path: dist
+
+  pypy-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: [ pypy-3.7, pypy-3.8, pypy-3.9 ]
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    - uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install maturin
+      run: pip install maturin
+    - name: Build Wheels - gilknocker
+      uses: PyO3/maturin-action@v1
+      with:
+        target: ${{ matrix.target }}
+        manylinux: auto
+        args: -i ${{ matrix.python }} --release --out dist
+    - name: Install wheel
+      run: |
+        pip install gilknocker --no-index --find-links dist
+    - name: Python Import test
+      run: pypy -c "import gilknocker"
+    - name: Upload wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels
+        path: dist
+
   linux-cross:
     runs-on: ubuntu-latest
     strategy:
