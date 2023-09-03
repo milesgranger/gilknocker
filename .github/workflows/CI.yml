@@ -103,7 +103,7 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-          architecture: x86
+          architecture: x64
       - name: Update rustup
         run: rustup self update
       - name: Install Rust toolchain
