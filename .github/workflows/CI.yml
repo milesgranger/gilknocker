@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -35,12 +35,12 @@ jobs:
         run: |
           pip install gilknocker --no-index --find-links dist --force-reinstall
       - name: Build wheels - universal2
-        if: ${{ matrix.python-version >= '3.8' || contains(fromJson('["3.10", "3.11"]'), matrix.python-version) }}
+        if: ${{ matrix.python-version >= '3.8' || contains(fromJson('["3.10", "3.11", "3.12"]'), matrix.python-version) }}
         uses: PyO3/maturin-action@v1
         with:
           args: -i python --release --universal2 --out dist
       - name: Install built wheel - universal2
-        if: ${{ matrix.python-version >= '3.8' || contains(fromJson('["3.10", "3.11"]'), matrix.python-version) }}
+        if: ${{ matrix.python-version >= '3.8' || contains(fromJson('["3.10", "3.11", "3.12"]'), matrix.python-version) }}
         run: |
           pip install gilknocker --no-index --find-links dist --force-reinstall
       - name: Python UnitTest
@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         target: [x64, x86]
     steps:
       - uses: actions/checkout@v2
@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         target: [x86_64, i686]
     steps:
     - uses: actions/checkout@v2
@@ -216,6 +216,7 @@ jobs:
           - '3.9'
           - '3.10'
           - '3.11'
+          - '3.12'
         target: [aarch64, armv7, s390x, ppc64le]
         include:
           - python: pypy3.7
