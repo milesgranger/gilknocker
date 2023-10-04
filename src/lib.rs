@@ -2,7 +2,7 @@
 use parking_lot::{const_rwlock, RwLock};
 use pyo3::ffi::{PyEval_InitThreads, PyEval_ThreadsInitialized};
 use pyo3::prelude::*;
-use pyo3::{AsPyPointer, PyResult};
+use pyo3::PyResult;
 use std::ops::DerefMut;
 use std::{
     mem::take,
