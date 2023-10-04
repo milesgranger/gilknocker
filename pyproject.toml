@@ -8,7 +8,7 @@ homepage = "https://github.com/milesgranger/gilknocker"
 repository = "https://github.com/milesgranger/gilknocker"
 
 [build-system]
-requires = ["maturin>=0.14,<0.15"]
+requires = ["maturin>=1.3.0,<2.0.0"]
 build-backend = "maturin"
 
 [tool.pytest.ini_options]
