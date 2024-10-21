@@ -80,7 +80,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-${{ matrix.python-version }}
+          name: wheels-windows-${{ matrix.python-version }}-${{ matrix.target }}
           path: dist
 
   linux:
@@ -116,7 +116,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels-linux-${{ matrix.python-version }}
+        name: wheels-linux-${{ matrix.python-version }}-${{ matrix.target }}
         path: dist
 
   pypy-linux:
