@@ -19,22 +19,15 @@ jobs:
       matrix:
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
-      - name: Build wheels - x86_64
-        if: ${{ matrix.python-version == '3.7' }}
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x86_64
-          args: -i python --release --out dist --sdist
       - name: Build wheels - universal2
-        if: ${{ matrix.python-version != '3.7' }}
         uses: PyO3/maturin-action@v1
         with:
           args: -i python --release --out dist --target universal2-apple-darwin
@@ -46,9 +39,9 @@ jobs:
           pip install -r requirements-dev.txt
           python -m pytest tests
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-macos-${{ matrix.python-version }}
           path: dist
 
   windows:
@@ -59,19 +52,13 @@ jobs:
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         target: [x64, x86]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.target }}
-      - name: Update rustup
-        run: rustup self update
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Build wheels
         uses: messense/maturin-action@v1
         with:
@@ -85,9 +72,9 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pytest -vs tests
       - name: Upload wheels
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-windows-${{ matrix.python-version }}-${{ matrix.target }}
           path: dist
 
   linux:
@@ -98,14 +85,10 @@ jobs:
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         target: [x86_64, i686]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        default: true
-    - uses: actions/setup-python@v2
+      uses: dtolnay/rust-toolchain@stable
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Build Wheels
@@ -121,9 +104,9 @@ jobs:
         python -m pip install -r requirements-dev.txt
         python -m pytest -vs tests
     - name: Upload wheels
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-linux-${{ matrix.python-version }}-${{ matrix.target }}
         path: dist
 
   pypy-linux:
@@ -131,12 +114,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
-          - pypy-3.7
-          - pypy-3.8
-          - pypy-3.9
+        python-version: [ pypy-3.8, pypy-3.9 ]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -145,24 +125,24 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{matrix.python}}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - uses: actions/setup-python@v4
+        key: ${{ runner.os }}-${{matrix.python-version}}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python }}
+        python-version: ${{ matrix.python-version }}
     - name: Build Wheels - gilknocker
       uses: PyO3/maturin-action@v1
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
+        args: -i ${{ matrix.python-version }} --release --out dist
     - name: Python UnitTest - gilknocker
       run: |
         pip install gilknocker --no-index --find-links dist
         pypy -c "import gilknocker"
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-pypy-linux-${{ matrix.python-version }}
         path: dist
 
   pypy-macos:
@@ -170,9 +150,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ pypy-3.7, pypy-3.8, pypy-3.9 ]
+        python-version: [ pypy-3.8, pypy-3.9 ]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -184,7 +164,7 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install maturin
@@ -194,16 +174,16 @@ jobs:
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
+        args: -i ${{ matrix.python-version }} --release --out dist
     - name: Install wheel
       run: |
         pip install gilknocker --no-index --find-links dist
     - name: Python Import test
       run: pypy -c "import gilknocker"
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-pypy-macos-${{ matrix.python-version }}
         path: dist
 
   linux-cross:
@@ -211,8 +191,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
-          - '3.7'
+        python-version:
           - '3.8'
           - '3.9'
           - '3.10'
@@ -220,14 +199,12 @@ jobs:
           - '3.12'
         target: [aarch64, armv7, s390x, ppc64le]
         include:
-          - python: pypy3.7
+          - python-version: pypy3.8
             target: aarch64
-          - python: pypy3.8
-            target: aarch64
-          - python: pypy3.9
+          - python-version: pypy3.9
             target: aarch64
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -242,10 +219,10 @@ jobs:
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
-    - uses: uraimo/run-on-arch-action@v2.3.0
+        args: -i ${{ matrix.python-version }} --release --out dist
+    - uses: uraimo/run-on-arch-action@v2
       # skipped cross compiled pypy wheel tests for now
-      if: ${{ !startsWith(matrix.python, 'pypy') }}
+      if: ${{ !startsWith(matrix.python-version, 'pypy') }}
       name: Install built wheel
       with:
         arch: ${{ matrix.target }}
@@ -259,18 +236,18 @@ jobs:
           apt-get install -y --no-install-recommends python3 python3-venv software-properties-common
           add-apt-repository ppa:deadsnakes/ppa
           apt-get update
-          apt-get install -y curl python3.7-venv python3.9-venv python3.10-venv python3.11-venv python3.12-venv
+          apt-get install -y curl python3.9-venv python3.10-venv python3.11-venv python3.12-venv
         run: |
           ls -lrth /artifacts
-          PYTHON=python${{ matrix.python }}
+          PYTHON=python${{ matrix.python-version }}
           $PYTHON -m venv venv
           venv/bin/pip install -U pip
           venv/bin/pip install gilknocker --no-index --find-links /artifacts --force-reinstall
           venv/bin/python -c 'import gilknocker'
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-linux-cross-${{ matrix.python-version }}-${{ matrix.target }}
         path: dist
 
   release:
@@ -279,10 +256,11 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: [ macos, windows, linux ]
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
-          name: wheels
-      - uses: actions/setup-python@v2
+          pattern: wheels-*
+          merge-multiple: true
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.9
       - name: Publish to PyPi
