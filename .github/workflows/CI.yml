@@ -41,7 +41,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-macos-${{ matrix.python-version }}
           path: dist
 
   windows:
@@ -80,7 +80,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: wheels-windows-${{ matrix.python-version }}
           path: dist
 
   linux:
@@ -116,7 +116,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-linux-${{ matrix.python-version }}
         path: dist
 
   pypy-linux:
@@ -154,7 +154,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-pypy-linux-${{ matrix.python-version }}
         path: dist
 
   pypy-macos:
@@ -195,7 +195,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-pypy-macos-${{ matrix.python-version }}
         path: dist
 
   linux-cross:
@@ -259,7 +259,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels
+        name: wheels-linux-cross-${{ matrix.python }}-${{ matrix.target }}
         path: dist
 
   release:
@@ -270,7 +270,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: wheels
+          pattern: wheels-*
+          merge-multiple: true
       - uses: actions/setup-python@v5
         with:
           python-version: 3.9
