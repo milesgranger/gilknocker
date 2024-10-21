@@ -57,14 +57,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.target }}
-      - name: Update rustup
-        run: rustup self update
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
+        uses: dtolnay/rust-toolchain@stable
       - name: Build wheels
         uses: messense/maturin-action@v1
         with:
@@ -93,11 +87,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        profile: minimal
-        default: true
+      uses: dtolnay/rust-toolchain@stable
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
