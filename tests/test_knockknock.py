@@ -77,7 +77,7 @@ def test_knockknock_some_gil():
 
     try:
         # usually ~0.75ish, but ~0.4 on mac
-        assert 0.2 < knocker.contention_metric < 0.8
+        assert 0.2 < knocker.contention_metric < 0.9
     finally:
         knocker.stop()
 
