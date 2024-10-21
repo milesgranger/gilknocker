@@ -19,8 +19,8 @@ jobs:
       matrix:
         python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install Rust toolchain
@@ -46,7 +46,7 @@ jobs:
           pip install -r requirements-dev.txt
           python -m pytest tests
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wheels
           path: dist
@@ -59,8 +59,8 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         target: [x64, x86]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           architecture: ${{ matrix.target }}
@@ -98,14 +98,14 @@ jobs:
         python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         target: [x86_64, i686]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         profile: minimal
         default: true
-    - uses: actions/setup-python@v2
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Build Wheels
@@ -136,7 +136,7 @@ jobs:
           - pypy-3.8
           - pypy-3.9
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -146,7 +146,7 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-${{matrix.python}}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python }}
     - name: Build Wheels - gilknocker
@@ -160,7 +160,7 @@ jobs:
         pip install gilknocker --no-index --find-links dist
         pypy -c "import gilknocker"
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wheels
         path: dist
@@ -172,7 +172,7 @@ jobs:
       matrix:
         python-version: [ pypy-3.7, pypy-3.8, pypy-3.9 ]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -184,7 +184,7 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install maturin
@@ -201,7 +201,7 @@ jobs:
     - name: Python Import test
       run: pypy -c "import gilknocker"
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wheels
         path: dist
@@ -227,7 +227,7 @@ jobs:
           - python: pypy3.9
             target: aarch64
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/cache@v3
       with:
         path: |
@@ -243,7 +243,7 @@ jobs:
         target: ${{ matrix.target }}
         manylinux: auto
         args: -i ${{ matrix.python }} --release --out dist
-    - uses: uraimo/run-on-arch-action@v2.3.0
+    - uses: uraimo/run-on-arch-action@v2
       # skipped cross compiled pypy wheel tests for now
       if: ${{ !startsWith(matrix.python, 'pypy') }}
       name: Install built wheel
@@ -268,7 +268,7 @@ jobs:
           venv/bin/pip install gilknocker --no-index --find-links /artifacts --force-reinstall
           venv/bin/python -c 'import gilknocker'
     - name: Upload wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wheels
         path: dist
@@ -279,10 +279,10 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: [ macos, windows, linux ]
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v4
         with:
           name: wheels
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.9
       - name: Publish to PyPi
