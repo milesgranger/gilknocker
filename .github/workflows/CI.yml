@@ -124,9 +124,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
-          - pypy-3.8
-          - pypy-3.9
+        python-version: [ pypy-3.8, pypy-3.9 ]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/cache@v3
@@ -137,16 +135,16 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{matrix.python}}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{matrix.python-version}}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python }}
+        python-version: ${{ matrix.python-version }}
     - name: Build Wheels - gilknocker
       uses: PyO3/maturin-action@v1
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
+        args: -i ${{ matrix.python-version }} --release --out dist
     - name: Python UnitTest - gilknocker
       run: |
         pip install gilknocker --no-index --find-links dist
@@ -186,7 +184,7 @@ jobs:
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
+        args: -i ${{ matrix.python-version }} --release --out dist
     - name: Install wheel
       run: |
         pip install gilknocker --no-index --find-links dist
@@ -203,7 +201,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python:
+        python-version:
           - '3.8'
           - '3.9'
           - '3.10'
@@ -211,9 +209,9 @@ jobs:
           - '3.12'
         target: [aarch64, armv7, s390x, ppc64le]
         include:
-          - python: pypy3.8
+          - python-version: pypy3.8
             target: aarch64
-          - python: pypy3.9
+          - python-version: pypy3.9
             target: aarch64
     steps:
     - uses: actions/checkout@v4
@@ -231,10 +229,10 @@ jobs:
       with:
         target: ${{ matrix.target }}
         manylinux: auto
-        args: -i ${{ matrix.python }} --release --out dist
+        args: -i ${{ matrix.python-version }} --release --out dist
     - uses: uraimo/run-on-arch-action@v2
       # skipped cross compiled pypy wheel tests for now
-      if: ${{ !startsWith(matrix.python, 'pypy') }}
+      if: ${{ !startsWith(matrix.python-version, 'pypy') }}
       name: Install built wheel
       with:
         arch: ${{ matrix.target }}
@@ -251,7 +249,7 @@ jobs:
           apt-get install -y curl python3.9-venv python3.10-venv python3.11-venv python3.12-venv
         run: |
           ls -lrth /artifacts
-          PYTHON=python${{ matrix.python }}
+          PYTHON=python${{ matrix.python-version }}
           $PYTHON -m venv venv
           venv/bin/pip install -U pip
           venv/bin/pip install gilknocker --no-index --find-links /artifacts --force-reinstall
@@ -259,7 +257,7 @@ jobs:
     - name: Upload wheels
       uses: actions/upload-artifact@v4
       with:
-        name: wheels-linux-cross-${{ matrix.python }}-${{ matrix.target }}
+        name: wheels-linux-cross-${{ matrix.python-version }}-${{ matrix.target }}
         path: dist
 
   release:
