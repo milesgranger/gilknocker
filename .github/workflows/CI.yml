@@ -218,7 +218,7 @@ jobs:
         name: Install built wheel
         with:
           arch: ${{ matrix.target }}
-          distro: ubuntu20.04
+          distro: ubuntu22.04
           githubToken: ${{ github.token }}
           # Mount the dist directory as /artifacts in the container
           dockerRunArgs: |
