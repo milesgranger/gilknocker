@@ -1,7 +1,7 @@
 [project]
 name = "gilknocker"
 keywords = ["GIL"]
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 
 [project.urls]
 homepage = "https://github.com/milesgranger/gilknocker"
