@@ -252,6 +252,7 @@ jobs:
       - uses: actions/download-artifact@v5
         with:
           pattern: wheels-*
+          path: wheels/
           merge-multiple: true
       - uses: actions/setup-python@v6
         with:
@@ -260,11 +261,11 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out .
+          args: --out dist/
       - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
         run: |
           pip install --upgrade wheel pip setuptools twine
-          twine upload --skip-existing *
+          twine upload --skip-existing wheels/* dist/*
