@@ -260,11 +260,11 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --out .
       - name: Publish to PyPi
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
         run: |
           pip install --upgrade wheel pip setuptools twine
-          twine upload --skip-existing dist/*
+          twine upload --skip-existing *
